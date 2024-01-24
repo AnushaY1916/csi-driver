@@ -381,13 +381,13 @@ func (driver *LinuxDriver) RepairFileSystem(volumeID string, device *model.Devic
 			}
 			log.Info("Succesfully repaired the file system for the volume %s", volumeID)
 		} else if fileSystemType == "xfs" {
-			err := executeFileSystemRepairCommand(volumeID, device, "xfs", "xfs_repair", []string{"-y", device.AltFullPathName})
+			err := executeFileSystemRepairCommand(volumeID, device, "xfs", "xfs_repair", []string{device.AltFullPathName})
 			if err != nil {
 				return fmt.Errorf("Failed to repair the xfs file system of the device %s for the volume %s due to the error %v", device.AltFullPathName, volumeID, err)
 			}
 			log.Infof("XFS Filesystem of the device %s is repaied successfully for the volume %s", device.AltFullPathName, volumeID)
 		} else if fileSystemType == "btrfs" {
-			err := executeFileSystemRepairCommand(volumeID, device, "btrfts", "btrfts", []string{"check", device.AltFullPathName})
+			err := executeFileSystemRepairCommand(volumeID, device, "btrfts", "btrfts", []string{"check", "--repair", device.AltFullPathName})
 			if err != nil {
 				return fmt.Errorf("Failed to repair the btrfs file system of the device %s for the volume %s due to the error %v", device.AltFullPathName, volumeID, err)
 			}
