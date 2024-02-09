@@ -31,6 +31,7 @@ import (
 	"github.com/hpe-storage/csi-driver/pkg/flavor/kubernetes"
 	"github.com/hpe-storage/csi-driver/pkg/flavor/vanilla"
 	"github.com/hpe-storage/csi-driver/pkg/monitor"
+	"github.com/hpe-storage/csi-driver/pkg/nodemonitor"
 )
 
 const (
@@ -51,6 +52,7 @@ type Driver struct {
 	flavor           flavor.Flavor
 	grpc             NonBlockingGRPCServer
 	podMonitor       *monitor.Monitor
+	nodeMonitor      *nodemonitor.NodeMonitor
 
 	controllerServiceCapabilities     []*csi.ControllerServiceCapability
 	nodeServiceCapabilities           []*csi.NodeServiceCapability
@@ -64,7 +66,7 @@ type Driver struct {
 }
 
 // NewDriver returns a driver that implements the gRPC endpoints required to support CSI
-func NewDriver(name, version, endpoint, flavorName string, nodeService bool, dbServer string, dbPort string, podMonitor bool, podMonitorInterval int64) (*Driver, error) {
+func NewDriver(name, version, endpoint, flavorName string, nodeService bool, dbServer string, dbPort string, podMonitor bool, podMonitorInterval int64, nodeInit bool) (*Driver, error) {
 
 	// Get CSI driver
 	driver := getDriver(name, version, endpoint)
@@ -82,6 +84,10 @@ func NewDriver(name, version, endpoint, flavorName string, nodeService bool, dbS
 
 	if podMonitor {
 		driver.podMonitor = monitor.NewMonitor(driver.flavor, podMonitorInterval)
+	}
+
+	if nodeInit {
+		driver.nodeMonitor = nodemonitor.NewNodeMonitor(driver.flavor, 70)
 	}
 
 	driver.KubeletRootDir = DefaultKubeletRoot
@@ -170,6 +176,9 @@ func (driver *Driver) Start(nodeService bool) error {
 			// start pod monitor along with controller plugin
 			if driver.podMonitor != nil {
 				driver.podMonitor.StartMonitor()
+			}
+			if driver.nodeMonitor != nil {
+				driver.nodeMonitor.StartNodeMonitor()
 			}
 		}
 	}()

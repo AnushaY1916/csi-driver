@@ -73,6 +73,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&dbServer, "dbserver", "s", "", "Database server for the CSI driver")
 	RootCmd.PersistentFlags().StringVarP(&dbPort, "dbport", "p", etcd.DefaultPort, "Database server port for the CSI driver")
 	RootCmd.PersistentFlags().BoolP("node-service", "", false, "CSI node-plugin")
+	RootCmd.PersistentFlags().BoolP("node-init", "", false, "CSI node-plugin")
 	RootCmd.PersistentFlags().BoolP("help", "h", false, "Show help information")
 	RootCmd.PersistentFlags().StringVarP(&flavorName, "flavor", "f", "", "CSI driver flavor")
 	RootCmd.PersistentFlags().BoolP("pod-monitor", "", false, "Enable monitoring of pod statuses on unreachable nodes")
@@ -87,6 +88,7 @@ func csiCliHandler(cmd *cobra.Command) error {
 	// Process cmd-line arguments for the CSI driver
 	driverName, _ := cmd.Flags().GetString("name")
 	nodeService, _ := cmd.Flags().GetBool("node-service")
+	nodeInit, _ := cmd.Flags().GetBool("node-init")
 	endpoint, _ := cmd.Flags().GetString("endpoint")
 	dbServer, _ := cmd.Flags().GetString("dbserver")
 	dbPort, _ := cmd.Flags().GetString("dbport")
@@ -116,6 +118,29 @@ func csiCliHandler(cmd *cobra.Command) error {
 		flavorName = flavor.Vanilla
 	}
 
+	if nodeInit {
+		/* Check if the node configuration is disabled
+		disableNodeConfiguraton := os.Getenv("DISABLE_NODE_CONFIGURATION")
+
+		if disableNodeConfiguraton == "true" {
+			log.Infof("Node configuration is disabled, DISABLE_NODE_CONFIGURATION=%v."+
+				"Skipping the Multipath and ISCSI configurations", disableNodeConfiguraton)
+		} else {
+			// perform conformance checks and service management
+			// configure iscsi
+			err = tunelinux.ConfigureIscsi()
+			if err != nil {
+				return fmt.Errorf("Unable to configure iscsid service, err %v", err.Error())
+			}
+
+			// configure multipath
+			err = tunelinux.ConfigureMultipath()
+			if err != nil {
+				return fmt.Errorf("Unable to configure multipathd service, err %v", err.Error())
+			}
+		}*/
+		log.Infof("NodeInit is set!!!!!!!!!!!!!!!")
+	}
 	if nodeService {
 		// Check if the node configuration is disabled
 		disableNodeConfiguraton := os.Getenv("DISABLE_NODE_CONFIGURATION")
@@ -154,7 +179,8 @@ func csiCliHandler(cmd *cobra.Command) error {
 		dbServer,
 		dbPort,
 		podMonitor,
-		monitorInterval)
+		monitorInterval,
+		nodeInit)
 	if err != nil {
 		return fmt.Errorf("Error instantiating plugin %v, Err: %v", driverName, err.Error())
 	}
