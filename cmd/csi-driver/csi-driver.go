@@ -119,29 +119,6 @@ func csiCliHandler(cmd *cobra.Command) error {
 	}
 
 	if nodeInit {
-		/* Check if the node configuration is disabled
-		disableNodeConfiguraton := os.Getenv("DISABLE_NODE_CONFIGURATION")
-
-		if disableNodeConfiguraton == "true" {
-			log.Infof("Node configuration is disabled, DISABLE_NODE_CONFIGURATION=%v."+
-				"Skipping the Multipath and ISCSI configurations", disableNodeConfiguraton)
-		} else {
-			// perform conformance checks and service management
-			// configure iscsi
-			err = tunelinux.ConfigureIscsi()
-			if err != nil {
-				return fmt.Errorf("Unable to configure iscsid service, err %v", err.Error())
-			}
-
-			// configure multipath
-			err = tunelinux.ConfigureMultipath()
-			if err != nil {
-				return fmt.Errorf("Unable to configure multipathd service, err %v", err.Error())
-			}
-		}*/
-		log.Infof("NodeInit is set!!!!!!!!!!!!!!!")
-	}
-	if nodeService {
 		// Check if the node configuration is disabled
 		disableNodeConfiguraton := os.Getenv("DISABLE_NODE_CONFIGURATION")
 
@@ -162,6 +139,8 @@ func csiCliHandler(cmd *cobra.Command) error {
 				return fmt.Errorf("Unable to configure multipathd service, err %v", err.Error())
 			}
 		}
+		log.Infof("NodeInit is set!!!!!!!!!!!!!!!")
+		//os.Exit(1)
 	}
 
 	monitorInterval, err := strconv.ParseInt(podMonitorInterval, 10, 64)

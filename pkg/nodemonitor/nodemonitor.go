@@ -98,7 +98,7 @@ func (m *NodeMonitor) monitorNode() error {
 		for {
 			select {
 			case <-tick.C:
-				log.Infof("Monitoring node......")
+				log.Infof("NODE MONITOR:Monitoring node......")
 			case <-m.stopChannel:
 				return
 			}
