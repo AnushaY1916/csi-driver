@@ -94,6 +94,7 @@ func csiCliHandler(cmd *cobra.Command) error {
 	dbPort, _ := cmd.Flags().GetString("dbport")
 	flavorName, _ := cmd.Flags().GetString("flavor")
 	podMonitor, _ := cmd.Flags().GetBool("pod-monitor")
+	nodeMonitor, _ := cmd.Flags().GetBool("node-monitor")
 	podMonitorInterval, _ := cmd.Flags().GetString("pod-monitor-interval")
 
 	// Parse the endpoint
@@ -159,7 +160,7 @@ func csiCliHandler(cmd *cobra.Command) error {
 		dbPort,
 		podMonitor,
 		monitorInterval,
-		nodeInit)
+		nodeMonitor)
 	if err != nil {
 		return fmt.Errorf("Error instantiating plugin %v, Err: %v", driverName, err.Error())
 	}
