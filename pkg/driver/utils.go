@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc"
 
 	log "github.com/hpe-storage/common-host-libs/logger"
+	"github.com/hpe-storage/common-host-libs/model"
 	"github.com/hpe-storage/common-host-libs/util"
 )
 
@@ -117,4 +118,39 @@ func removeDataFile(dirPath string, fileName string) error {
 	defer log.Trace("<<<<< removeDataFile")
 	filePath := path.Join(dirPath, fileName)
 	return util.FileDelete(filePath)
+}
+
+func GetMultipathDevices() (multipathDevices []*model.MultipathDeviceInfo, err error) {
+	log.Tracef(">>>> getMultipathDevices ")
+	defer log.Trace("<<<<< getMultipathDevices")
+
+	out, _, err := util.ExecCommandOutput("multipathd", []string{"show", "multipaths", "json"})
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get multipath devices due to the error: %s", err.Error())
+	}
+
+	if out != "" {
+		var rawJson map[string]any
+		err = json.Unmarshal([]byte(out), &rawJson)
+		if err != nil {
+			return nil, fmt.Errorf("Invalid JSON output of multipathd command: %s", err.Error())
+		}
+		maps := rawJson["maps"]
+		if x, ok := maps.([]interface{}); ok {
+			for _, mapItem := range x {
+				mapItem, _ := mapItem.(map[string]interface{})
+				multipathDevice := &model.MultipathDeviceInfo{
+					Name:       mapItem["name"].(string),
+					Vendor:     mapItem["vend"].(string),
+					Paths:      mapItem["paths"].(float64),
+					PathFaults: mapItem["path_faults"].(float64),
+					UUID:       mapItem["uuid"].(string),
+				}
+				multipathDevices = append(multipathDevices, multipathDevice)
+			}
+			return multipathDevices, nil
+		}
+	}
+	return nil, fmt.Errorf("Invalid multipathd command output received")
 }

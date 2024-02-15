@@ -17,8 +17,8 @@ type StagingDevice struct {
 
 // EncryptionKeySecretInfo represents secret information related to passphrase stored in staging area.
 type EncryptionKeySecretInfo struct {
-	Name 		string `json:"secret_name,omitempty"`
-	Namespace 	string `json:"secret_namespace,omitempty"`
+	Name      string `json:"secret_name,omitempty"`
+	Namespace string `json:"secret_namespace,omitempty"`
 }
 
 // Mount :
@@ -53,4 +53,14 @@ type Secret struct {
 type VolumeHandleTargetPath struct {
 	VolumeHandle string `json:"volume_handle"` // ephemeral volume handle
 	TargetPath   string `json:"target_path"`   // target path of ephemeral volume
+}
+
+// This is not a complete information of the multipath device,
+// rather few fields that can be used to determine whetehr the device is healthy or not
+type MultipathDeviceInfo struct {
+	Name       string
+	Vendor     string
+	Paths      float64
+	PathFaults float64
+	UUID       string
 }
