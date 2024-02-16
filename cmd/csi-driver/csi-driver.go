@@ -125,7 +125,6 @@ func csiCliHandler(cmd *cobra.Command) error {
 		multipathDevices, err := tunelinux.GetMultipathDevices() //driver.GetMultipathDevices()
 		if err != nil {
 			log.Errorf("Error while getting the multipath devices")
-			return
 		}
 		unhealthyDevices, err := tunelinux.GetUnhealthyMultipathDevices(multipathDevices)
 		if err != nil {
