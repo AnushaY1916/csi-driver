@@ -122,6 +122,16 @@ func csiCliHandler(cmd *cobra.Command) error {
 
 	if nodeInit {
 		log.Infof("NodeInit is set!!!!!!!!!!!!!!!")
+		multipathDevices, err := tunelinux.GetMultipathDevices() //driver.GetMultipathDevices()
+		if err != nil {
+			log.Errorf("Error while getting the multipath devices")
+			return
+		}
+		unhealthyDevices, err := tunelinux.GetUnhealthyMultipathDevices(multipathDevices)
+		if err != nil {
+			log.Errorf("Error while retreiving unhealthy devices: %s", err.Error())
+		}
+		log.Tracef("Unhealthy devices found are: %+v", unhealthyDevices)
 	}
 	if nodeService {
 		// Check if the node configuration is disabled
