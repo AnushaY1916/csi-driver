@@ -74,6 +74,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&dbPort, "dbport", "p", etcd.DefaultPort, "Database server port for the CSI driver")
 	RootCmd.PersistentFlags().BoolP("node-service", "", false, "CSI node-plugin")
 	RootCmd.PersistentFlags().BoolP("node-init", "", false, "CSI node-plugin")
+	RootCmd.PersistentFlags().BoolP("node-monitor", "", false, "Enable monitoring of stale entries on nodes")
 	RootCmd.PersistentFlags().BoolP("help", "h", false, "Show help information")
 	RootCmd.PersistentFlags().StringVarP(&flavorName, "flavor", "f", "", "CSI driver flavor")
 	RootCmd.PersistentFlags().BoolP("pod-monitor", "", false, "Enable monitoring of pod statuses on unreachable nodes")
@@ -120,6 +121,9 @@ func csiCliHandler(cmd *cobra.Command) error {
 	}
 
 	if nodeInit {
+		log.Infof("NodeInit is set!!!!!!!!!!!!!!!")
+	}
+	if nodeService {
 		// Check if the node configuration is disabled
 		disableNodeConfiguraton := os.Getenv("DISABLE_NODE_CONFIGURATION")
 
@@ -140,7 +144,6 @@ func csiCliHandler(cmd *cobra.Command) error {
 				return fmt.Errorf("Unable to configure multipathd service, err %v", err.Error())
 			}
 		}
-		log.Infof("NodeInit is set!!!!!!!!!!!!!!!")
 		//os.Exit(1)
 	}
 
