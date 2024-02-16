@@ -9,7 +9,8 @@ import (
 	"time"
 
 	log "github.com/hpe-storage/common-host-libs/logger"
-	"github.com/hpe-storage/csi-driver/pkg/driver"
+	"github.com/hpe-storage/common-host-libs/model"
+	"github.com/hpe-storage/common-host-libs/tunelinux"
 	"github.com/hpe-storage/csi-driver/pkg/flavor"
 )
 
@@ -100,17 +101,17 @@ func (m *NodeMonitor) monitorNode() error {
 			select {
 			case <-tick.C:
 				log.Infof("NODE MONITOR :Monitoring node......1")
-				multipathDevices, err := driver.GetMultipathDevices()
+				multipathDevices, err := tunelinux.GetMultipathDevices() //driver.GetMultipathDevices()
 				if err != nil {
 					log.Errorf("Error while getting the multipath devices")
 					return
 				}
-				var defectiveDevices []*driver.MultipathDeviceInfo
+				var defectiveDevices []*model.MultipathDeviceInfo
 				for _, device := range multipathDevices {
 					log.Tracef("NAME:", device.Name, " Vendor:", device.Vendor, " Paths:", device.Paths, " Path Faults:", device.PathFaults, " UUID:", device.UUID)
 					if device.Paths < 1 || device.PathFaults > 0 {
 						log.Warnf("Defective multipath device found: ", device.Name)
-						defectiveDevices = append(defectiveDevices, (*driver.MultipathDeviceInfo)(device))
+						defectiveDevices = append(defectiveDevices, (*model.MultipathDeviceInfo)(device))
 					}
 					log.Tracef("Number of items in defectiveDevices: ", len(defectiveDevices))
 				}
