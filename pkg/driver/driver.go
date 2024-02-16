@@ -171,14 +171,14 @@ func (driver *Driver) Start(nodeService bool) error {
 		driver.grpc = NewNonBlockingGRPCServer()
 		if nodeService {
 			driver.grpc.Start(driver.endpoint, driver, nil, driver)
+			if driver.nodeMonitor != nil {
+				driver.nodeMonitor.StartNodeMonitor()
+			}
 		} else {
 			driver.grpc.Start(driver.endpoint, driver, driver, nil)
 			// start pod monitor along with controller plugin
 			if driver.podMonitor != nil {
 				driver.podMonitor.StartMonitor()
-			}
-			if driver.nodeMonitor != nil {
-				driver.nodeMonitor.StartNodeMonitor()
 			}
 		}
 	}()
