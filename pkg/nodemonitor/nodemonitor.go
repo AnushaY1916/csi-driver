@@ -110,6 +110,25 @@ func (m *NodeMonitor) monitorNode() error {
 					log.Errorf("Error while retreiving unhealthy devices: %s", err.Error())
 				}
 				log.Tracef("Unhealthy devices found are: %+v", unhealthyDevices)
+				if len(unhealthyDevices) > 0 {
+					log.Tracef("Unhealthy devices found on the node %s", nodeName)
+					vaList, err := flavor.ListVolumeAttachments()
+					if err != nil {
+						return err
+					}
+					if len(vaList.Items) > 0 {
+						log.Infof("Volume Attachments are more")
+						for _, va := range vaList.Items {
+							log.Info("Volume Attachment: ", va, &va)
+							log.Info("NAME:", va.Name)
+							log.Info("PV:", va.Spec.Source.PersistentVolumeName)
+							log.Info("NODE NAME:", va.Spec.NodeName)
+						}
+					}
+
+				} else {
+					log.Tracef("No unhealthy devices found on teh node %s", nodeName)
+				}
 				log.Infof("NODE MONITOR :Monitoring node......2")
 			case <-m.stopChannel:
 				return
