@@ -114,7 +114,7 @@ func (m *NodeMonitor) monitorNode() error {
 					log.Tracef("Unhealthy devices found on the node %s", m.nodeName)
 					vaList, err := m.flavor.ListVolumeAttachments()
 					if err != nil {
-						return err
+						return
 					}
 					if len(vaList.Items) > 0 {
 						log.Infof("Volume Attachments are more")

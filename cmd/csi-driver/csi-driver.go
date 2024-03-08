@@ -19,6 +19,7 @@ import (
 
 	"github.com/hpe-storage/csi-driver/pkg/driver"
 	"github.com/hpe-storage/csi-driver/pkg/flavor"
+	"github.com/hpe-storage/csi-driver/pkg/initcontainer"
 )
 
 const (
@@ -131,7 +132,8 @@ func csiCliHandler(cmd *cobra.Command) error {
 			log.Errorf("Error while retreiving unhealthy devices: %s", err.Error())
 		}
 		log.Tracef("Unhealthy devices found are: %+v", unhealthyDevices)*/
-		err := initcontainer.init()
+		initContainer := initcontainer.NewInitContainer(flavorName, nodeService)
+		err := initContainer.Init()
 		if err != nil {
 			log.Errorf("Error while running the init container logic: %s", err.Error())
 		}
