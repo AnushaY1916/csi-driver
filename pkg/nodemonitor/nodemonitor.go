@@ -111,8 +111,8 @@ func (m *NodeMonitor) monitorNode() error {
 				}
 				log.Tracef("Unhealthy devices found are: %+v", unhealthyDevices)
 				if len(unhealthyDevices) > 0 {
-					log.Tracef("Unhealthy devices found on the node %s", nodeName)
-					vaList, err := flavor.ListVolumeAttachments()
+					log.Tracef("Unhealthy devices found on the node %s", m.nodeName)
+					vaList, err := m.flavor.ListVolumeAttachments()
 					if err != nil {
 						return err
 					}
@@ -127,7 +127,7 @@ func (m *NodeMonitor) monitorNode() error {
 					}
 
 				} else {
-					log.Tracef("No unhealthy devices found on teh node %s", nodeName)
+					log.Tracef("No unhealthy devices found on teh node %s", m.nodeName)
 				}
 				log.Infof("NODE MONITOR :Monitoring node......2")
 			case <-m.stopChannel:
