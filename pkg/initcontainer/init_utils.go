@@ -15,12 +15,12 @@ type InitContainer struct {
 	nodeName string
 }
 
-func (ic *InitContainer) NewInitContainer(flavorName string, nodeService bool) *InitContainer {
+func NewInitContainer(flavorName string, nodeService bool) *InitContainer {
 	var initFlavour flavor.Flavor
 	if flavorName == flavor.Kubernetes {
 		flavor, err := kubernetes.NewKubernetesFlavor(nodeService, nil)
 		if err != nil {
-			return nil, err
+			return nil
 		}
 		initFlavour = flavor
 	} else {
@@ -30,11 +30,11 @@ func (ic *InitContainer) NewInitContainer(flavorName string, nodeService bool) *
 	if key := os.Getenv("NODE_NAME"); key != "" {
 		ic.nodeName = key
 	}
-	log.Infof("InitContainer: %+v", m)
+	log.Infof("InitContainer: %+v", ic)
 	// initialize InitContainer
-	return m
+	return ic
 }
-func (ic *InitContainer) Init() err {
+func (ic *InitContainer) Init() error {
 
 	log.Trace(">>>>> init method of Init Container")
 	defer log.Trace("<<<<< init method of INit Container")
@@ -42,7 +42,7 @@ func (ic *InitContainer) Init() err {
 	multipathDevices, err := tunelinux.GetMultipathDevices() //driver.GetMultipathDevices()
 	if err != nil {
 		log.Errorf("Error while getting the multipath devices")
-		return
+		return err
 	}
 	unhealthyDevices, err := tunelinux.GetUnhealthyMultipathDevices(multipathDevices)
 	if err != nil {
@@ -52,7 +52,7 @@ func (ic *InitContainer) Init() err {
 
 	if len(unhealthyDevices) > 0 {
 		log.Tracef("Unhealthy devices found on the node %s", ic.nodeName)
-		vaList, err := flavor.ListVolumeAttachments()
+		vaList, err := ic.flavor.ListVolumeAttachments()
 		if err != nil {
 			return err
 		}
@@ -69,4 +69,5 @@ func (ic *InitContainer) Init() err {
 	} else {
 		log.Tracef("No unhealthy devices found on teh node %s", ic.nodeName)
 	}
+	return nil
 }
