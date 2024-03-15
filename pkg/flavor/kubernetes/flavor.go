@@ -790,6 +790,8 @@ func (flavor *Flavor) ListVolumeAttachments() (*storage_v1.VolumeAttachmentList,
 	defer log.Trace("<<<<< ListVolumeAttachments")
 
 	vaList, err := flavor.kubeClient.StorageV1().VolumeAttachments().List(context.Background(),meta_v1.ListOptions{})
+	log.Trace("VOLUME ATTACHMENT LIST:", vaList)
+	log.Tracef("VOLUME ATTACHMENT LIST:%+v", vaList)
 	if err != nil {
 		return nil, err
 	}

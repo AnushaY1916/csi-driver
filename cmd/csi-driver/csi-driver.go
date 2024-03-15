@@ -136,7 +136,9 @@ func csiCliHandler(cmd *cobra.Command) error {
 		err := initContainer.Init()
 		if err != nil {
 			log.Errorf("Error while running the init container logic: %s", err.Error())
+			os.Exit(1)
 		}
+		os.Exit(0)
 	}
 	if nodeService {
 		// Check if the node configuration is disabled

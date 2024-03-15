@@ -119,15 +119,17 @@ func (m *NodeMonitor) monitorNode() error {
 					if len(vaList.Items) > 0 {
 						log.Infof("Volume Attachments are more")
 						for _, va := range vaList.Items {
-							log.Info("Volume Attachment: ", va, &va)
 							log.Info("NAME:", va.Name)
-							log.Info("PV:", va.Spec.Source.PersistentVolumeName)
+							log.Info("PV:", *va.Spec.Source.PersistentVolumeName)
+							log.Info("STATUS: ", va.Status)
+							log.Info("ATTATCHMENTMETADATA: ", va.Status.AttachmentMetadata)
+							log.Info("SERIAL NUMBER: ", va.Status.AttachmentMetadata["serialNumber"])
 							log.Info("NODE NAME:", va.Spec.NodeName)
 						}
 					}
 
 				} else {
-					log.Tracef("No unhealthy devices found on teh node %s", m.nodeName)
+					log.Tracef("No unhealthy devices found on the node %s", m.nodeName)
 				}
 				log.Infof("NODE MONITOR :Monitoring node......2")
 			case <-m.stopChannel:
