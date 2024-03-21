@@ -39,7 +39,7 @@ func NewInitContainer(flavorName string, nodeService bool) *InitContainer {
 func (ic *InitContainer) Init() error {
 
 	log.Trace(">>>>> init method of Init Container")
-	defer log.Trace("<<<<< init method of INit Container")
+	defer log.Trace("<<<<< init method of Init Container")
 
 	multipathDevices, err := tunelinux.GetMultipathDevices() //driver.GetMultipathDevices()
 	if err != nil {
@@ -47,38 +47,41 @@ func (ic *InitContainer) Init() error {
 		return err
 	}
 	if multipathDevices != nil && len(multipathDevices) > 0 {
-		vaList, err := nm.flavor.ListVolumeAttachments()
+		vaList, err := ic.flavor.ListVolumeAttachments()
 		if err != nil {
 			return
 		}
 		for _, device := range multipathDevices {
 			if vaList != nil && len(vaList.Items) > 0 {
-				if doesDeviceBelongToTheNode(device, vaList, nm.nodeName) {
+				log.Infof("Assessing the multipath device %s", device.Name)
+				if doesDeviceBelongToTheNode(device, vaList, ic.nodeName) {
+					log.Infof("Multipath device %s belongs to the node %s", device.Name, ic.nodeName)
 					if device.IsUnhealthy {
-						log.Info("The multipath device %s belongs to this node %s and is unhealthy. Issue warnings!", device.Name, nm.nodeName)
+						log.Info("The multipath device %s belongs to this node %s and is unhealthy. Issue warnings!", device.Name, ic.nodeName)
 					} else {
-						log.Info("The multipath device %s belongs to this node %s and is healthy. Nothing to do", device.Name, nm.nodeName)
+						log.Info("The multipath device %s belongs to this node %s and is healthy. Nothing to do", device.Name, ic.nodeName)
 					}
 				} else {
+					log.Infof("Multipath device %s doesnt not belong to the node %s", device.Name, ic.nodeName)
 					if device.IsUnhealthy {
-						log.Infof("The multipath device %s is unhealthy and it does not belong to the node %s", device.Name, nm.nodeName)
+						log.Infof("The multipath device %s is unhealthy and it does not belong to the node %s", device.Name, ic.nodeName)
 						//do cleanup
 					} else {
-						log.Infof("The multipath device %s is healthy and it does not belong to the node %s. Issue warnings!", device.Name, nm.nodeName)
+						log.Infof("The multipath device %s is healthy and it does not belong to the node %s. Issue warnings!", device.Name, ic.nodeName)
 					}
 				}
 			} else {
 				if device.IsUnhealthy {
-					log.Tracef("No volume attachments found. The multipath device is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
+					log.Infof("No volume attachments found. The multipath device is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
 					// Do cleanup
 				} else {
-					log.Tracef("No volume attachmenst found. The multipath device is healthy and does not belong to HPE CSI driver")
+					log.Infof("No volume attachmenst found. The multipath device is healthy and does not belong to HPE CSI driver")
 					//Nothing to do
 				}
 			}
 		}
 	} else {
-		log.Tracef("No multipath devices found on the node %s", nm.nodeName)
+		log.Infof("No multipath devices found on the node %s", ic.nodeName)
 	}
 	return nil
 }

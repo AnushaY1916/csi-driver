@@ -113,14 +113,17 @@ func (nm *NodeMonitor) monitorNode() error {
 						return
 					}
 					for _, device := range multipathDevices {
+						log.Infof("Assessing the multipath device %s", device.Name)
 						if vaList != nil && len(vaList.Items) > 0 {
 							if doesDeviceBelongToTheNode(device, vaList, nm.nodeName) {
+								log.Infof("Multipath device %s belongs to the node %s", device.Name, nm.nodeName)
 								if device.IsUnhealthy {
 									log.Info("The multipath device %s belongs to this node %s and is unhealthy. Issue warnings!", device.Name, nm.nodeName)
 								} else {
 									log.Info("The multipath device %s belongs to this node %s and is healthy. Nothing to do", device.Name, nm.nodeName)
 								}
 							} else {
+								log.Infof("Multipath device %s doesnt not belong to the node %s", device.Name, nm.nodeName)
 								if device.IsUnhealthy {
 									log.Infof("The multipath device %s is unhealthy and it does not belong to the node %s", device.Name, nm.nodeName)
 									//do cleanup
@@ -130,15 +133,15 @@ func (nm *NodeMonitor) monitorNode() error {
 							}
 						} else {
 							if device.IsUnhealthy {
-								log.Tracef("No volume attachments found. The multipath devices is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
+								log.Infof("No volume attachments found. The multipath devices is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
 								// Do cleanup
 							} else {
-								log.Tracef("No volume attachmenst found. The multipath device is healthy and does not belong to HPE CSI driver")
+								log.Infof("No volume attachmenst found. The multipath device is healthy and does not belong to HPE CSI driver")
 							}
 						}
 					}
 				} else {
-					log.Tracef("No multipath devices found on the node %s", nm.nodeName)
+					log.Infof("No multipath devices found on the node %s", nm.nodeName)
 				}
 				log.Infof("NODE MONITOR :Monitoring node......2")
 			case <-nm.stopChannel:
