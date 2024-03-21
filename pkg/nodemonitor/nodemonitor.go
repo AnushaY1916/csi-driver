@@ -9,6 +9,7 @@ import (
 	"time"
 
 	log "github.com/hpe-storage/common-host-libs/logger"
+	"github.com/hpe-storage/common-host-libs/model"
 	"github.com/hpe-storage/common-host-libs/tunelinux"
 	"github.com/hpe-storage/csi-driver/pkg/flavor"
 )
@@ -40,60 +41,60 @@ type NodeMonitor struct {
 }
 
 // StartMonitor starts the monitor
-func (m *NodeMonitor) StartNodeMonitor() error {
+func (nm *NodeMonitor) StartNodeMonitor() error {
 	log.Trace(">>>>> StartNodeMonitor")
 	defer log.Trace("<<<<< StartNodeMonitor")
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	nm.lock.Lock()
+	defer nm.lock.Unlock()
 
-	if m.started {
+	if nm.started {
 		return fmt.Errorf("Node monitor has already been started")
 	}
 
-	if m.intervalSec == 0 {
-		m.intervalSec = defaultIntervalSec
+	if nm.intervalSec == 0 {
+		nm.intervalSec = defaultIntervalSec
 	} else if m.intervalSec < minimumIntervalSec {
 		log.Warnf("minimum interval for health monitor is %v seconds", minimumIntervalSec)
-		m.intervalSec = minimumIntervalSec
+		nm.intervalSec = minimumIntervalSec
 	}
 
-	m.stopChannel = make(chan int)
-	m.done = make(chan int)
+	nm.stopChannel = make(chan int)
+	nm.done = make(chan int)
 
 	if err := m.monitorNode(); err != nil {
 		return err
 	}
 
-	m.started = true
+	nm.started = true
 	return nil
 }
 
 // StopMonitor stops the monitor
-func (m *NodeMonitor) StopNodeMonitor() error {
+func (nm *NodeMonitor) StopNodeMonitor() error {
 	log.Trace(">>>>> StopNodeMonitor")
 	defer log.Trace("<<<<< StopNodeMonitor")
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	nm.lock.Lock()
+	defer nm.lock.Unlock()
 
-	if !m.started {
+	if !nm.started {
 		return fmt.Errorf("Node monitor has not been started")
 	}
 
-	close(m.stopChannel)
-	<-m.done
+	close(nm.stopChannel)
+	<-nm.done
 
-	m.started = false
+	nm.started = false
 	return nil
 }
 
-func (m *NodeMonitor) monitorNode() error {
+func (nm *NodeMonitor) monitorNode() error {
 	log.Trace(">>>>> monitorNode")
 	defer log.Trace("<<<<< monitorNode")
-	defer close(m.done)
+	defer close(nm.done)
 
-	tick := time.NewTicker(time.Duration(m.intervalSec) * time.Second)
+	tick := time.NewTicker(time.Duration(nm.intervalSec) * time.Second)
 
 	go func() {
 		for {
@@ -105,37 +106,75 @@ func (m *NodeMonitor) monitorNode() error {
 					log.Errorf("Error while getting the multipath devices")
 					return
 				}
-				unhealthyDevices, err := tunelinux.GetUnhealthyMultipathDevices(multipathDevices)
-				if err != nil {
-					log.Errorf("Error while retreiving unhealthy devices: %s", err.Error())
-				}
-				log.Tracef("Unhealthy devices found are: %+v", unhealthyDevices)
-				if len(unhealthyDevices) > 0 {
-					log.Tracef("Unhealthy devices found on the node %s", m.nodeName)
+				if multipathDevices != nil && len(multipathDevices) > 0 {
+					unhealthyDevices, err := tunelinux.GetUnhealthyMultipathDevices(multipathDevices)
+					if err != nil {
+						log.Errorf("Error while retreiving unhealthy multipath devices: %s", err.Error())
+					}
+					log.Tracef("Unhealthy multipath devices found are: %+v", unhealthyDevices)
 					vaList, err := m.flavor.ListVolumeAttachments()
 					if err != nil {
 						return
 					}
-					if len(vaList.Items) > 0 {
-						log.Infof("Volume Attachments are more")
-						for _, va := range vaList.Items {
-							log.Info("NAME:", va.Name)
-							log.Info("PV:", *va.Spec.Source.PersistentVolumeName)
-							log.Info("STATUS: ", va.Status)
-							log.Info("ATTATCHMENTMETADATA: ", va.Status.AttachmentMetadata)
-							log.Info("SERIAL NUMBER: ", va.Status.AttachmentMetadata["serialNumber"])
-							log.Info("NODE NAME:", va.Spec.NodeName)
+					if len(unhealthyDevices) > 0 {
+						log.Tracef("Unhealthy devices found on the node %s", nm.nodeName)
+						if vaList != nil && len(vaList.Items) > 0 {
+							for _, device := range multipathDevices {
+								if doesDeviceBelongToTheNode(device, vaList, nm.nodeName) {
+									log.Info("The multipath device %s belongs to this node %s and is unhealthy. Issue warnings!", device.Name, nm.nodeName)
+								} else {
+									log.Infof("The multipath device %s is unhealthy and it does not belong to the node %s", device.Name, nm.nodeName)
+									//do cleanup
+								}
+							}
+						} else if len(vaList.Items == 0) {
+							log.Tracef("No volume attachments found. The multipath devices is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
+							// Do cleanup
+						}
+						//Do cleanup
+					} else {
+						log.Tracef("No unhealthy devices found on the node %s", nm.nodeName)
+						//check whether they belong to this node or not
+
+						if vaList != nil && len(vaList.Items) > 0 {
+							for _, device := range multipathDevices {
+								if doesDeviceBelongToTheNode(device, vaList, nm.nodeName) {
+									log.Info("The multipath device %s belongs to this node %s and is healthy. Nothing to do", device.Name, nm.nodeName)
+								} else {
+									//do cleanup
+									log.Infof("The multipath device %s is healthy and it does not belong to the node %s. Issue warnings!", device.Name, nm.nodeName)
+								}
+							}
+						} else if len(vaList.Items == 0) {
+							log.Tracef("No volume attachmenst found. The multipath device is healthy and does not belong to HPE CSI driver")
 						}
 					}
-
 				} else {
-					log.Tracef("No unhealthy devices found on the node %s", m.nodeName)
+					log.Tracef("No multipath devices found on the node %s", nm.nodeName)
 				}
 				log.Infof("NODE MONITOR :Monitoring node......2")
-			case <-m.stopChannel:
+			case <-nm.stopChannel:
 				return
 			}
 		}
 	}()
 	return nil
+}
+
+func doesDeviceBelongToTheNode(multipathDevice model.MultipathDeviceInfo, volumeAttachmentList *storage_v1.VolumeAttachmentList, nodeName string) bool {
+	if multipathDevice != nil {
+		for _, va := range volumeAttachmentList.Items {
+			log.Info("NAME:", va.Name)
+			log.Info("PV:", *va.Spec.Source.PersistentVolumeName)
+			log.Info("STATUS: ", va.Status)
+			log.Info("ATTATCHMENTMETADATA: ", va.Status.AttachmentMetadata)
+			log.Info("SERIAL NUMBER: ", va.Status.AttachmentMetadata["serialNumber"])
+			log.Info("NODE NAME:", va.Spec.NodeName)
+
+			if multipathDevice.UUID[1:] == va.Status.AttachmentMetadata["serialNumber"] && nodeName == va.Spec.NodeName {
+				return true
+			}
+		}
+	}
+	return false
 }
