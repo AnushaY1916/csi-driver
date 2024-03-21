@@ -9,6 +9,7 @@ import (
 	"github.com/hpe-storage/csi-driver/pkg/flavor"
 	"github.com/hpe-storage/csi-driver/pkg/flavor/kubernetes"
 	"github.com/hpe-storage/csi-driver/pkg/flavor/vanilla"
+	storage_v1 "k8s.io/api/storage/v1"
 )
 
 type InitContainer struct {
@@ -67,8 +68,8 @@ func (ic *InitContainer) Init() error {
 						//do cleanup
 					}
 				}
-			} else if len(vaList.Items == 0) {
-				log.Tracef("No volume attachmenst found. The multipath devices is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
+			} else if len(vaList.Items) == 0 {
+				log.Tracef("No volume attachments found. The multipath devices is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
 				// Do cleanup
 			}
 			//Do cleanup
@@ -85,7 +86,7 @@ func (ic *InitContainer) Init() error {
 						log.Infof("The multipath device %s is healthy and it does not belong to the node %s. Issue warnings!", device.Name, ic.nodeName)
 					}
 				}
-			} else if len(vaList.Items == 0) {
+			} else if len(vaList.Items) == 0 {
 				log.Tracef("No volume attachmenst found. The multipath device is healthy and does not belong to HPE CSI driver")
 			}
 		}
@@ -95,7 +96,7 @@ func (ic *InitContainer) Init() error {
 	return nil
 }
 
-func doesDeviceBelongToTheNode(multipathDevice model.MultipathDeviceInfo, volumeAttachmentList *storage_v1.VolumeAttachmentList, nodeName string) bool {
+func doesDeviceBelongToTheNode(multipathDevice *model.MultipathDeviceInfo, volumeAttachmentList *storage_v1.VolumeAttachmentList, nodeName string) bool {
 	if multipathDevice != nil {
 		for _, va := range volumeAttachmentList.Items {
 			log.Info("NAME:", va.Name)

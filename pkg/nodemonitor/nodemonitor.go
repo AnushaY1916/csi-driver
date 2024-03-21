@@ -12,6 +12,7 @@ import (
 	"github.com/hpe-storage/common-host-libs/model"
 	"github.com/hpe-storage/common-host-libs/tunelinux"
 	"github.com/hpe-storage/csi-driver/pkg/flavor"
+	storage_v1 "k8s.io/api/storage/v1"
 )
 
 const (
@@ -20,13 +21,13 @@ const (
 )
 
 func NewNodeMonitor(flavor flavor.Flavor, monitorInterval int64) *NodeMonitor {
-	m := &NodeMonitor{flavor: flavor, intervalSec: monitorInterval}
+	nm := &NodeMonitor{flavor: flavor, intervalSec: monitorInterval}
 	if key := os.Getenv("NODE_NAME"); key != "" {
-		m.nodeName = key
+		nm.nodeName = key
 	}
-	log.Infof("NODE MONITOR: %+v", m)
+	log.Infof("NODE MONITOR: %+v", nm)
 	// initialize node monitor
-	return m
+	return nm
 }
 
 // Monitor Pods running on un-reachable nodes
@@ -54,7 +55,7 @@ func (nm *NodeMonitor) StartNodeMonitor() error {
 
 	if nm.intervalSec == 0 {
 		nm.intervalSec = defaultIntervalSec
-	} else if m.intervalSec < minimumIntervalSec {
+	} else if nm.intervalSec < minimumIntervalSec {
 		log.Warnf("minimum interval for health monitor is %v seconds", minimumIntervalSec)
 		nm.intervalSec = minimumIntervalSec
 	}
@@ -62,7 +63,7 @@ func (nm *NodeMonitor) StartNodeMonitor() error {
 	nm.stopChannel = make(chan int)
 	nm.done = make(chan int)
 
-	if err := m.monitorNode(); err != nil {
+	if err := nm.monitorNode(); err != nil {
 		return err
 	}
 
@@ -112,7 +113,7 @@ func (nm *NodeMonitor) monitorNode() error {
 						log.Errorf("Error while retreiving unhealthy multipath devices: %s", err.Error())
 					}
 					log.Tracef("Unhealthy multipath devices found are: %+v", unhealthyDevices)
-					vaList, err := m.flavor.ListVolumeAttachments()
+					vaList, err := nm.flavor.ListVolumeAttachments()
 					if err != nil {
 						return
 					}
@@ -127,7 +128,7 @@ func (nm *NodeMonitor) monitorNode() error {
 									//do cleanup
 								}
 							}
-						} else if len(vaList.Items == 0) {
+						} else if len(vaList.Items) == 0 {
 							log.Tracef("No volume attachments found. The multipath devices is unhealthy and does not belong to HPE CSI driver, Do cleanup!")
 							// Do cleanup
 						}
@@ -145,7 +146,7 @@ func (nm *NodeMonitor) monitorNode() error {
 									log.Infof("The multipath device %s is healthy and it does not belong to the node %s. Issue warnings!", device.Name, nm.nodeName)
 								}
 							}
-						} else if len(vaList.Items == 0) {
+						} else if len(vaList.Items) == 0 {
 							log.Tracef("No volume attachmenst found. The multipath device is healthy and does not belong to HPE CSI driver")
 						}
 					}
@@ -161,7 +162,7 @@ func (nm *NodeMonitor) monitorNode() error {
 	return nil
 }
 
-func doesDeviceBelongToTheNode(multipathDevice model.MultipathDeviceInfo, volumeAttachmentList *storage_v1.VolumeAttachmentList, nodeName string) bool {
+func doesDeviceBelongToTheNode(multipathDevice *model.MultipathDeviceInfo, volumeAttachmentList *storage_v1.VolumeAttachmentList, nodeName string) bool {
 	if multipathDevice != nil {
 		for _, va := range volumeAttachmentList.Items {
 			log.Info("NAME:", va.Name)
