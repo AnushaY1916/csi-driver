@@ -3,11 +3,12 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"time"
-	"context"
+
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	log "github.com/hpe-storage/common-host-libs/logger"
 	"golang.org/x/mod/semver"
@@ -19,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -190,7 +192,7 @@ func (flavor *Flavor) CreateNFSVolume(pvName string, reqVolSize int64, parameter
 	// decorate NFS PV with its volume handle as label for easy lookup during RWX PV deletion
 	pv.ObjectMeta.Labels = make(map[string]string)
 	pv.ObjectMeta.Labels[nfsParentVolumeIDKey] = fmt.Sprintf("%s", claim.ObjectMeta.UID)
-	flavor.kubeClient.CoreV1().PersistentVolumes().Update(context.Background(),pv,meta_v1.UpdateOptions{})
+	flavor.kubeClient.CoreV1().PersistentVolumes().Update(context.Background(), pv, meta_v1.UpdateOptions{})
 
 	// Return newly created underlying nfs claim uid with pv attributes
 	return &csi.Volume{
@@ -205,7 +207,7 @@ func (flavor *Flavor) createServiceAccount(nfsNamespace string) error {
 	log.Tracef(">>>>> createServiceAccount with namespace %s", nfsNamespace)
 	defer log.Tracef("<<<<< createServiceAccount")
 
-	_, err := flavor.kubeClient.CoreV1().ServiceAccounts(nfsNamespace).Create(context.Background(),&core_v1.ServiceAccount{ObjectMeta: meta_v1.ObjectMeta{Name: nfsServiceAccount}},meta_v1.CreateOptions{})
+	_, err := flavor.kubeClient.CoreV1().ServiceAccounts(nfsNamespace).Create(context.Background(), &core_v1.ServiceAccount{ObjectMeta: meta_v1.ObjectMeta{Name: nfsServiceAccount}}, meta_v1.CreateOptions{})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return err
@@ -258,7 +260,7 @@ EXPORT
 			nfsConfigFile: nfsGaneshaConfig,
 		},
 	}
-	_, err := flavor.kubeClient.CoreV1().ConfigMaps(nfsNamespace).Create(context.Background(),configMap,meta_v1.CreateOptions{})
+	_, err := flavor.kubeClient.CoreV1().ConfigMaps(nfsNamespace).Create(context.Background(), configMap, meta_v1.CreateOptions{})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return err
@@ -566,7 +568,7 @@ func (flavor *Flavor) getPVByNFSLabel(name string, value string) (*core_v1.Persi
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 	}
 
-	pvList, err := flavor.kubeClient.CoreV1().PersistentVolumes().List(context.Background(),listOptions)
+	pvList, err := flavor.kubeClient.CoreV1().PersistentVolumes().List(context.Background(), listOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -585,7 +587,7 @@ func (flavor *Flavor) getPvFromName(pvName string) (*core_v1.PersistentVolume, e
 	log.Tracef(">>>>> getPvFromName with claim %s", pvName)
 	defer log.Tracef("<<<<< getPvFromName")
 
-	pv, err := flavor.kubeClient.CoreV1().PersistentVolumes().Get(context.Background(),pvName, meta_v1.GetOptions{})
+	pv, err := flavor.kubeClient.CoreV1().PersistentVolumes().Get(context.Background(), pvName, meta_v1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -620,12 +622,12 @@ func (flavor *Flavor) cloneClaim(claim *core_v1.PersistentVolumeClaim, nfsNamesp
 	// if clone is requested from existing pvc, ensure child-claim(i.e RWO type) is used instead
 	if claim.Spec.DataSource != nil && claim.Spec.DataSource.Kind == pvcKind {
 		// fetch source claim
-		sourceClaim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(),claim.Spec.DataSource.Name, meta_v1.GetOptions{})
+		sourceClaim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(), claim.Spec.DataSource.Name, meta_v1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("cannot fetch source claim %s for requested clone, err %s", claim.Spec.DataSource.Name, err.Error())
 		}
 		// check if a PVC exists with name hpe-nfs-<original-claim-uid> and replace that as data-source.
-		childClaim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(),fmt.Sprintf("%s%s", nfsPrefix, sourceClaim.ObjectMeta.UID), meta_v1.GetOptions{})
+		childClaim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(), fmt.Sprintf("%s%s", nfsPrefix, sourceClaim.ObjectMeta.UID), meta_v1.GetOptions{})
 		if err == nil && childClaim != nil {
 			log.Tracef("replacing datasource from %s to %s for nfs claim %s creation", claim.Spec.DataSource.Name, childClaim.ObjectMeta.Name, claim.ObjectMeta.Name)
 			claimClone.Spec.DataSource.Name = childClaim.ObjectMeta.Name
@@ -640,13 +642,13 @@ func (flavor *Flavor) createNFSPVC(claim *core_v1.PersistentVolumeClaim, nfsName
 	defer log.Tracef("<<<<< createNFSPVC")
 
 	// create new underlying nfs claim
-	newClaim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Create(context.Background(),claim,meta_v1.CreateOptions{})
+	newClaim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Create(context.Background(), claim, meta_v1.CreateOptions{})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return nil, err
 		}
 		// claim already exists, get details
-		newClaim, err = flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(),claim.ObjectMeta.Name, meta_v1.GetOptions{})
+		newClaim, err = flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(), claim.ObjectMeta.Name, meta_v1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -674,7 +676,7 @@ func (flavor *Flavor) createNFSService(svcName string, nfsNamespace string) erro
 
 	// check if nfs service already exists
 	getAction := func() error {
-		_, err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Get(context.Background(),svcName, meta_v1.GetOptions{})
+		_, err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
 		return err
 	}
 	exists, err := flavor.resourceExists(getAction, "service", svcName)
@@ -685,7 +687,7 @@ func (flavor *Flavor) createNFSService(svcName string, nfsNamespace string) erro
 
 	// create the nfs service
 	service := flavor.makeNFSService(svcName, nfsNamespace)
-	if _, err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Create(context.Background(),service,meta_v1.CreateOptions{}); err != nil {
+	if _, err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Create(context.Background(), service, meta_v1.CreateOptions{}); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return fmt.Errorf("failed to create nfs service %s, err %+v", svcName, err)
 		}
@@ -700,7 +702,7 @@ func (flavor *Flavor) getNFSNamespace(namespace string) (*core_v1.Namespace, err
 	log.Tracef(">>>>> getNFSNamespace with namespace name %s", namespace)
 	defer log.Tracef("<<<<< getNFSNamespace")
 
-	ns, err := flavor.kubeClient.CoreV1().Namespaces().Get(context.Background(),namespace, meta_v1.GetOptions{})
+	ns, err := flavor.kubeClient.CoreV1().Namespaces().Get(context.Background(), namespace, meta_v1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -712,7 +714,7 @@ func (flavor *Flavor) createNFSNamespace(namespace string) (*core_v1.Namespace, 
 	defer log.Tracef("<<<<< createNFSNamespace")
 
 	spec := &core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: namespace}}
-	ns, err := flavor.kubeClient.CoreV1().Namespaces().Create(context.Background(),spec,meta_v1.CreateOptions{})
+	ns, err := flavor.kubeClient.CoreV1().Namespaces().Create(context.Background(), spec, meta_v1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -723,7 +725,7 @@ func (flavor *Flavor) getNFSService(svcName, nfsNamespace string) (*core_v1.Serv
 	log.Tracef(">>>>> getNFSService with service name %s", svcName)
 	defer log.Tracef("<<<<< getNFSService")
 
-	service, err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Get(context.Background(),svcName, meta_v1.GetOptions{})
+	service, err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -736,7 +738,7 @@ func (flavor *Flavor) getNFSNodes(nodeSelectorValue string) ([]core_v1.Node, err
 	defer log.Tracef("<<<<< getNFSNodes")
 
 	// check if nfs service already exists
-	nodeList, err := flavor.kubeClient.CoreV1().Nodes().List(context.Background(),meta_v1.ListOptions{LabelSelector: strings.Join([]string{nfsNodeSelectorKey, nodeSelectorValue}, "=")})
+	nodeList, err := flavor.kubeClient.CoreV1().Nodes().List(context.Background(), meta_v1.ListOptions{LabelSelector: strings.Join([]string{nfsNodeSelectorKey, nodeSelectorValue}, "=")})
 	if err != nil {
 		log.Errorf("unable to get list of nodes with hpe-nfs label, err %s", err.Error())
 		return nil, err
@@ -762,7 +764,7 @@ func (flavor *Flavor) createNFSDeployment(deploymentName string, nfsSpec *NFSSpe
 
 	// create a nfs deployment
 	deployment := flavor.makeNFSDeployment(deploymentName, nfsSpec, nfsNamespace)
-	if _, err := flavor.kubeClient.AppsV1().Deployments(nfsNamespace).Create(context.Background(),deployment,meta_v1.CreateOptions{}); err != nil {
+	if _, err := flavor.kubeClient.AppsV1().Deployments(nfsNamespace).Create(context.Background(), deployment, meta_v1.CreateOptions{}); err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return fmt.Errorf("failed to create nfs deployment %s, err %+v", deploymentName, err)
 		}
@@ -779,7 +781,7 @@ func (flavor *Flavor) createNFSDeployment(deploymentName string, nfsSpec *NFSSpe
 	return nil
 }
 
-//nolint
+// nolint
 func (flavor *Flavor) makeNFSService(svcName string, nfsNamespace string) *core_v1.Service {
 	log.Tracef(">>>>> makeNFSService with name %s", svcName)
 	defer log.Tracef("<<<<< makeNFSService")
@@ -852,7 +854,7 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	podLabels := map[string]string{
 		"app":                 name,
 		nfsSpec.labelKey:      nfsSpec.labelValue,
-	        nfsAffinityLabelKey:   nfsAffinityLabelValue,
+		nfsAffinityLabelKey:   nfsAffinityLabelValue,
 		nfsProvisionedByKey:   nfsSpec.sourceVolumeClaim,
 		nfsProvisionedFromKey: nfsSpec.sourceNamespace,
 	}
@@ -874,9 +876,9 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	}
 
 	tolerationsDedicated := core_v1.Toleration{
-		Key:               nfsDedicatedTolerationKey,
-		Operator:          "Exists",
-		Effect:            "NoSchedule",
+		Key:      nfsDedicatedTolerationKey,
+		Operator: "Exists",
+		Effect:   "NoSchedule",
 	}
 
 	podLabelSelector := meta_v1.LabelSelector{
@@ -892,6 +894,45 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 		LabelSelector:     &podLabelSelector,
 	}
 
+	livenessProbe := &core_v1.Probe{
+		ProbeHandler: core_v1.ProbeHandler{
+			Exec: &core_v1.ExecAction{
+				Command: []string{"/bin/sh", "-c", "/opt/hpe-storage/lib/nfsHealthCheck.sh"},
+			},
+		},
+		InitialDelaySeconds: 10,
+		PeriodSeconds:       5,
+		TimeoutSeconds:      2,
+	}
+
+	startupProbe := &core_v1.Probe{
+		ProbeHandler: core_v1.ProbeHandler{
+			TCPSocket: &core_v1.TCPSocketAction{
+				Host: "my-service", // Name of the Kubernetes service to check
+				Port: intstr.IntOrString{IntVal: 2049},
+			},
+		},
+		InitialDelaySeconds: 5,
+		PeriodSeconds:       10,
+		FailureThreshold:    3,
+	}
+
+	readinessProbe := &core_v1.Probe{
+		ProbeHandler: core_v1.ProbeHandler{
+			Exec: &core_v1.ExecAction{
+				Command: []string{"/bin/sh", "-c", "/opt/hpe-storage/lib/nfsHealthCheck.sh"},
+			},
+		},
+		InitialDelaySeconds: 10,
+		PeriodSeconds:       5,
+		TimeoutSeconds:      2,
+	}
+
+	containers := []core_v1.Container{flavor.makeContainer("hpe-nfs", nfsSpec)}
+	containers[0].LivenessProbe = livenessProbe
+	containers[0].StartupProbe = startupProbe
+	containers[0].ReadinessProbe = readinessProbe
+
 	podSpec := core_v1.PodTemplateSpec{
 		ObjectMeta: meta_v1.ObjectMeta{
 			Name:        name,
@@ -900,7 +941,7 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 		},
 		Spec: core_v1.PodSpec{
 			ServiceAccountName:        nfsServiceAccount,
-			Containers:                []core_v1.Container{flavor.makeContainer("hpe-nfs", nfsSpec)},
+			Containers:                containers,
 			RestartPolicy:             core_v1.RestartPolicyAlways,
 			Volumes:                   volumes,
 			HostIPC:                   false,
@@ -1020,7 +1061,7 @@ func (flavor *Flavor) deleteNFSService(svcName string, nfsNamespace string) erro
 	//options := &meta_v1.DeleteOptions{PropagationPolicy: &propagation}
 
 	// Delete the nfs service
-	err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Delete(context.Background(),svcName, meta_v1.DeleteOptions{})
+	err := flavor.kubeClient.CoreV1().Services(nfsNamespace).Delete(context.Background(), svcName, meta_v1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		log.Errorf("failed to delete nfs service %s, err %+v", svcName, err)
 		return err
@@ -1039,7 +1080,7 @@ func (flavor *Flavor) deleteNFSDeployment(name string, nfsNamespace string) erro
 	//gracePeriod := int64(5)
 	//options := &meta_v1.DeleteOptions{PropagationPolicy: &propagation, GracePeriodSeconds: &gracePeriod}
 
-	err := flavor.kubeClient.AppsV1().Deployments(nfsNamespace).Delete(context.Background(),name, meta_v1.DeleteOptions{})
+	err := flavor.kubeClient.AppsV1().Deployments(nfsNamespace).Delete(context.Background(), name, meta_v1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		log.Errorf("failed to delete nfs deployment %s, err %+v", name, err)
 		return err
@@ -1057,7 +1098,7 @@ func (flavor *Flavor) deleteNFSPVC(claimName string, nfsNamespace string) error 
 	//propagation := meta_v1.DeletePropagationBackground
 	//options := &meta_v1.DeleteOptions{PropagationPolicy: &propagation}
 	// Delete the pvc
-	err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Delete(context.Background(),claimName, meta_v1.DeleteOptions{})
+	err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Delete(context.Background(), claimName, meta_v1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		log.Errorf("failed to delete nfs pvc %s, err %+v", claimName, err)
 		return err
@@ -1089,7 +1130,7 @@ func (flavor *Flavor) waitForPVCCreation(claimName, nfsNamespace string) error {
 	sleepTime := creationDelay
 	for i := 0; i < creationInterval; i++ {
 		// check for the existence of the resource
-		claim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(),claimName, meta_v1.GetOptions{})
+		claim, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(nfsNamespace).Get(context.Background(), claimName, meta_v1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get pvc %s, err %+v", claimName, err)
 		}
@@ -1115,7 +1156,7 @@ func (flavor *Flavor) waitForDeployment(deploymentName string, nfsNamespace stri
 	sleepTime := creationDelay
 	for i := 0; i < creationInterval; i++ {
 		// check for the existence of the resource
-		deployment, err := flavor.kubeClient.AppsV1().Deployments(nfsNamespace).Get(context.Background(),deploymentName, meta_v1.GetOptions{})
+		deployment, err := flavor.kubeClient.AppsV1().Deployments(nfsNamespace).Get(context.Background(), deploymentName, meta_v1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get deployment %s, err %+v", deploymentName, err)
 		}
