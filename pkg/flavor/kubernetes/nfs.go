@@ -897,7 +897,7 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	livenessProbe := &core_v1.Probe{
 		ProbeHandler: core_v1.ProbeHandler{
 			Exec: &core_v1.ExecAction{
-				Command: []string{"/bin/sh", "-c", "/opt/hpe-storage/lib/nfsHealthCheck.sh"},
+				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh 1"},
 			},
 		},
 		InitialDelaySeconds: 10,
@@ -920,7 +920,7 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	readinessProbe := &core_v1.Probe{
 		ProbeHandler: core_v1.ProbeHandler{
 			Exec: &core_v1.ExecAction{
-				Command: []string{"/bin/sh", "-c", "/opt/hpe-storage/lib/nfsHealthCheck.sh"},
+				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh 0"},
 			},
 		},
 		InitialDelaySeconds: 10,
