@@ -908,13 +908,13 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	startupProbe := &core_v1.Probe{
 		ProbeHandler: core_v1.ProbeHandler{
 			TCPSocket: &core_v1.TCPSocketAction{
-				Host: "my-service", // Name of the Kubernetes service to check
+				Host: name, // Name of the nfs service, which is same as deployment name
 				Port: intstr.IntOrString{IntVal: 2049},
 			},
 		},
-		InitialDelaySeconds: 5,
-		PeriodSeconds:       10,
-		FailureThreshold:    3,
+		InitialDelaySeconds: 10,
+		PeriodSeconds:       5,
+		FailureThreshold:    2,
 	}
 
 	readinessProbe := &core_v1.Probe{
