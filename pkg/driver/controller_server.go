@@ -668,6 +668,19 @@ func (driver *Driver) deleteVolume(volumeID string, secrets map[string]string, f
 			fmt.Sprintf("Failed to get storage provider from secrets, err: %s", err.Error()))
 	}
 
+	// Get volume snapshots
+	snapshots, err := storageProvider.GetSnapshots(volumeID)
+	if err != nil {
+		log.Error("Error fetching snapshots for volume %s: %s", volumeID, err.Error())
+		return status.Error(codes.FailedPrecondition, fmt.Sprintf("Error while attempting to get snapshots for volume %s: %s", volumeID, err.Error()))
+	}
+
+	// check if snapshots exist
+	if len(snapshots) > 0 {
+		log.Tracef("Found snapshots for volume %s: %+v", volumeID, snapshots)
+		return status.Errorf(codes.FailedPrecondition, fmt.Sprintf("Volume %s with ID %s cannot be deleted as it has snapshots attached", existingVolume.Name, existingVolume.ID))
+	}
+
 	// Delete the volume from the array
 	log.Infof("About to delete volume %s with force=%v", volumeID, force)
 	if err := storageProvider.DeleteVolume(volumeID, force); err != nil {
@@ -792,8 +805,8 @@ func (driver *Driver) controllerPublishVolume(
 		// TODO: check and add client ACL here
 		log.Info("ControllerPublish requested with NFS resources, returning success")
 		return map[string]string{
-			readOnlyKey:         strconv.FormatBool(readOnlyAccessMode),
-			nfsMountOptionsKey:  volumeContext[nfsMountOptionsKey],
+			readOnlyKey:        strconv.FormatBool(readOnlyAccessMode),
+			nfsMountOptionsKey: volumeContext[nfsMountOptionsKey],
 		}, nil
 	}
 
@@ -1490,7 +1503,7 @@ func (driver *Driver) ListSnapshots(ctx context.Context, request *csi.ListSnapsh
 //
 // nolint: dupl
 func (driver *Driver) ControllerExpandVolume(ctx context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	log.Trace(">>>>> ControllerExpandVolume")
+	log.Trace(">>>>> ControllerExpandVolume: ", request, ": Volume ID: ", request.VolumeId)
 	defer log.Trace("<<<<< ControllerExpandVolume")
 
 	if request.GetVolumeId() == "" {
@@ -1522,6 +1535,33 @@ func (driver *Driver) ControllerExpandVolume(ctx context.Context, request *csi.C
 
 	// TODO: Add info to DB
 
+	if !strings.Contains(request.VolumeId, "pvc-") {
+		log.Tracef(" Found a foreign UUID for the volume, check if it is NFS volume or not")
+		nfsVolumeID, err := driver.flavor.GetNFSVolumeID(request.VolumeId)
+		if err != nil {
+			return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to get the volume details for the foreign UUID %s: %s", request.VolumeId, err.Error()))
+		}
+		corrected_volumeId := "pvc-" + request.VolumeId
+		log.Infof("Found the RWO volume %s associated with the NFS volume %s", nfsVolumeID, corrected_volumeId)
+		log.Infof("Checking the access mode of the NFS Volume %s", corrected_volumeId)
+		if driver.flavor.IsNFSVolumeExpandable(corrected_volumeId) {
+			log.Infof("The access mode of the NFS volume %s is ReadWriteMany.", corrected_volumeId)
+			err := driver.flavor.ExpandNFSBackendVolume(nfsVolumeID, request.CapacityRange.GetRequiredBytes())
+			if err != nil {
+				log.Errorf("Failed to update the backend RWO volume of NFS volume %s: %s", corrected_volumeId, err.Error())
+				return nil, err
+			}
+			log.Infof("The size of the backend RWO volume %s associated with the NFS volume %s has been updated", nfsVolumeID, corrected_volumeId)
+			//NFS client will take care of resizing
+			return &csi.ControllerExpandVolumeResponse{
+				CapacityBytes:         request.CapacityRange.GetRequiredBytes(),
+				NodeExpansionRequired: false,
+			}, nil
+		} else {
+			return nil, status.Error(codes.Canceled, fmt.Sprintf("The NFS volume %s either does not have a ReadWriteMany access mode or has multiple access modes, and therefore this volume can't be expanded.", corrected_volumeId))
+		}
+	}
+
 	// Get Volume
 	existingVolume, err := driver.GetVolumeByID(request.VolumeId, request.Secrets)
 	if err != nil {
@@ -1544,6 +1584,7 @@ func (driver *Driver) ControllerExpandVolume(ctx context.Context, request *csi.C
 
 	if existingVolume.Size == request.CapacityRange.GetLimitBytes() || existingVolume.Size == request.CapacityRange.GetRequiredBytes() {
 		// volume is already at requested size, so no action required.
+		log.Tracef("volume %s is already at requested size, so no action required", request.VolumeId)
 		return &csi.ControllerExpandVolumeResponse{
 			CapacityBytes:         existingVolume.Size,
 			NodeExpansionRequired: nodeExpansionRequired,

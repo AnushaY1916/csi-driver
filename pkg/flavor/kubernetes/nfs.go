@@ -4,6 +4,7 @@ package kubernetes
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -20,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/intstr"
+	k8s_types "k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -1192,4 +1193,69 @@ func (flavor *Flavor) getResourceQuantity(scParams map[string]string, paramKey s
 	}
 
 	return quantity, nil
+}
+
+func (flavor *Flavor) IsNFSVolumeExpandable(volumeId string) bool {
+	log.Tracef(">>>>>> IsNFSVolumeExpandable, volume:%s", volumeId)
+	defer log.Tracef("<<<<<<< IsNFSVolumeExpandable")
+
+	accessModes, err := flavor.GetAccessModesOfPV(volumeId)
+	if err != nil {
+		log.Errorf("Failed to get the access modes of the volume %s: %s", volumeId, err.Error())
+		return false
+	}
+
+	if len(accessModes) > 1 {
+		log.Errorf("Multiple access modes exist for the volume %s, hence this volume can't be expanded.", volumeId)
+		return false
+	}
+
+	if len(accessModes) == 1 && (accessModes[0] == core_v1.ReadWriteMany || accessModes[0] == core_v1.ReadWriteOnce) {
+		return true
+	}
+	return false
+}
+
+func (flavor *Flavor) ExpandNFSBackendVolume(nfsVolumeID string, newCapacity int64) error {
+	log.Tracef(">>>>> ExpandNFSBackendVolume: %s", nfsVolumeID)
+	defer log.Trace("<<<<< ExpandNFSBackendVolume")
+
+	rwoPVCName, err := flavor.GetVolumePropertyOfPV("csi.storage.k8s.io/pvc/name", nfsVolumeID)
+	if err != nil {
+		log.Errorf("Failed to get the name of the claim name of the PV %s", nfsVolumeID)
+		return fmt.Errorf("Unable to find the claim name for the backend RWO volume %s", nfsVolumeID)
+	}
+	log.Infof("PVC name of the backend RWO volume %s is: %s", nfsVolumeID, rwoPVCName)
+
+	pvcNamespace, err := flavor.GetVolumePropertyOfPV("csi.storage.k8s.io/pvc/namespace", nfsVolumeID)
+	if err != nil {
+		log.Errorf("Failed to get the namespace of the volume claim %s", rwoPVCName)
+		return fmt.Errorf("Unable to find the namespace of the backend RWO volume claim %s", rwoPVCName)
+	}
+	log.Infof("PVC namesapce of the backend RWO volume %s is: %s", nfsVolumeID, pvcNamespace)
+
+	patchData := []map[string]interface{}{
+		{
+			"op":    "replace",
+			"path":  "/spec/resources/requests/storage",
+			"value": newCapacity,
+		},
+	}
+	patchBytes, err := json.Marshal(patchData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal patch data: %v", err)
+	}
+	// Send the patch request
+	response, err := flavor.kubeClient.CoreV1().PersistentVolumeClaims(pvcNamespace).Patch(
+		context.TODO(),
+		rwoPVCName,
+		k8s_types.JSONPatchType,
+		patchBytes,
+		meta_v1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to patch PVC: %v", err)
+	}
+	log.Trace("Response from the the patch request: ", response)
+	return nil
 }
