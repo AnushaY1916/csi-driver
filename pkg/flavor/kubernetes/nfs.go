@@ -20,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -907,14 +906,13 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 
 	startupProbe := &core_v1.Probe{
 		ProbeHandler: core_v1.ProbeHandler{
-			TCPSocket: &core_v1.TCPSocketAction{
-				Host: name, // Name of the nfs service, which is same as deployment name
-				Port: intstr.IntOrString{IntVal: 2049},
+			Exec: &core_v1.ExecAction{
+				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh 3"},
 			},
 		},
 		InitialDelaySeconds: 10,
 		PeriodSeconds:       5,
-		FailureThreshold:    2,
+		TimeoutSeconds:      2,
 	}
 
 	readinessProbe := &core_v1.Probe{
