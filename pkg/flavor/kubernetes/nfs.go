@@ -896,7 +896,7 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	livenessProbe := &core_v1.Probe{
 		ProbeHandler: core_v1.ProbeHandler{
 			Exec: &core_v1.ExecAction{
-				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh 1"},
+				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh", "1", name, nfsNamespace},
 			},
 		},
 		InitialDelaySeconds: 10,
@@ -907,7 +907,7 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	startupProbe := &core_v1.Probe{
 		ProbeHandler: core_v1.ProbeHandler{
 			Exec: &core_v1.ExecAction{
-				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh 3"},
+				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh", "3", name, nfsNamespace},
 			},
 		},
 		InitialDelaySeconds: 10,
@@ -918,7 +918,7 @@ func (flavor *Flavor) makeNFSDeployment(name string, nfsSpec *NFSSpec, nfsNamesp
 	readinessProbe := &core_v1.Probe{
 		ProbeHandler: core_v1.ProbeHandler{
 			Exec: &core_v1.ExecAction{
-				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh 0"},
+				Command: []string{"/bin/sh", "-c", "/nfsHealthCheck.sh", "0", name, nfsNamespace},
 			},
 		},
 		InitialDelaySeconds: 10,
